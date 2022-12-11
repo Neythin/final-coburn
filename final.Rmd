@@ -77,7 +77,7 @@ valorant <- valData %>% clean_names()
 Let's remove the predictor variables "region", "name", and "tag" as they are just characteristics to distinguish the players and not so relevant with predicting win percentage.
 ```{r}
 valorant <- valorant %>% 
-  select(-region, -name, -tag, -agent_1)
+  select(-region, -name, -tag)
 ```
 
 We'll remove the extremities, as they were invalid entries due to either incorrect input or missing an input in general.
@@ -96,7 +96,7 @@ valorant <- valorant %>%
 
 Here we turn all the nominal variables into factors so that they can be applied to our models.
 ```{r}
-#valorant$agent_1 <- factor(valorant$agent_1)
+valorant$agent_1 <- factor(valorant$agent_1)
 valorant$agent_2 <- factor(valorant$agent_2)
 valorant$agent_3 <- factor(valorant$agent_3)
 
