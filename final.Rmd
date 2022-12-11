@@ -15,7 +15,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 
-![](valorant.jpeg)
+![](images/valorant.jpeg)
 
 # Introduction
 
@@ -25,6 +25,14 @@ The aim of this project is to be able to predict a player's win percentage based
 
 Valorant is a free-to-play, first-person, tactical shooter published by Riot Games. Although officially released in June 2020, the development of the game started in 2014 and did not start their closed beta access until April 2020. Valorant is set in the near future, where players play as one of 20 "agents" -- characters based on several countries and cultures around the world. In the main game mode, players are assigned to a team of 5, either attacking or defending, with each team aiming to be the first to win 13 rounds. Not only is there a halftime to switch sides, but there is an overtime if the teams end up in a tie. Agents have unique abilities, each requiring charges, as well as a unique ultimate ability that requires charging through kills, deaths, orbs, or objectives. 
 
+### Why is this project relevant?
+
+As this game is still relatively young, it can easily be seen that this game is also rapidly changing. Due to factors such as new maps, new agents, or updates that can buff or nerf certain aspects of this game, the meta of Valorant is ever-changing. Moreover, as Valorant is establishing its name as the next up and coming e-sport, professional players are dissecting every bit of the game to get the edge over their opponents. Through this project, we can do a deep dive of which factors lead to a higher win percentage and what trends are currently taking over.  
+
+### Project Timeline
+
+With all of that settled, let's cover exactly how we're going to accomplish this. First comes some data clean up and manipulation. Secondly, we'll get into some exploratory data analysis -- seeing the distribution of our outcome variable "win_percent" and the relationships among the many predictor variables. Next, we'll follow that up with our models, specifically linear regression, lasso regression, decision forest, and random forest. After fitting a training set to these models, we will fit the best performing model to the testing data. 
+
 Now that we all have a basic understanding of the game, let's get started!
 
 ### Loading Libraries and Data
@@ -32,12 +40,12 @@ Now that we all have a basic understanding of the game, let's get started!
 
 library(tidymodels)
 library(tidyverse)
-library(ISLR) # For the Smarket data set
-library(ISLR2) # For the Bikeshare data set
+library(ISLR)
+library(ISLR2)
 library(discrim)
 library(poissonreg)
 library(corrr)
-library(klaR) # for naive bayes
+library(klaR)
 library(ggplot2)
 library(ggthemes)
 library(pROC)
@@ -49,6 +57,8 @@ library(randomForest)
 library(xgboost)
 library(yardstick)
 tidymodels_prefer()
+
+# These are all the libraries I used to make this project happen!
 ```
 
 
@@ -56,15 +66,22 @@ tidymodels_prefer()
 # Data Cleaning
 
 ### Setting up the data
-```{r}
 
+Before we can even modify the data set, we have to read it in! Although the data was already pretty organized and neat, let's use the clean_names function to ensure it.
+```{r}
 valData <- read.csv('Data/val_stats.csv')
 
 valorant <- valData %>% clean_names()
+```
 
+Let's remove the predictor variables "region", "name", and "tag" as they are just characteristics to distinguish the players and not so relevant with predicting win percentage.
+```{r}
 valorant <- valorant %>% 
-  select(-region, -name, -tag)
+  select(-region, -name, -tag, -agent_1)
+```
 
+We'll remove the extremities, as they were invalid entries due to either incorrect input or missing an input in general.
+```{r}
 valorant <- valorant %>% 
   filter(win_percent != 0, 
            win_percent != 100,
@@ -75,15 +92,21 @@ valorant <- valorant %>%
          rating == 'Diamond 1' | rating == 'Diamond 2' | rating == 'Diamond 3' |
          rating == 'Immortal 1' | rating == 'Immortal 2' | rating == 'Immortal 3' | 
            rating == 'Radiant')
+```
 
-valorant$agent_1 <- factor(valorant$agent_1)
+Here we turn all the nominal variables into factors so that they can be applied to our models.
+```{r}
+#valorant$agent_1 <- factor(valorant$agent_1)
 valorant$agent_2 <- factor(valorant$agent_2)
 valorant$agent_3 <- factor(valorant$agent_3)
 
 valorant$gun1_name <- factor(valorant$gun1_name)
 valorant$gun2_name <- factor(valorant$gun2_name)
 valorant$gun3_name <- factor(valorant$gun3_name)
+```
 
+Same thing for the "rating" variable, and let's organize the ranks to match the layout of the game.
+```{r}
 valorant$rating <- factor(valorant$rating,
                           levels = c('Unrated', 'Bronze 2', 'Bronze 3',
                                      'Silver 1', 'Silver 2', 'Silver 3',
@@ -92,7 +115,10 @@ valorant$rating <- factor(valorant$rating,
                                      'Diamond 1', 'Diamond 2', 'Diamond 3',
                                      'Immortal 1', 'Immortal 2', 'Immortal 3', 
                                      'Radiant'))
+```
 
+These variables were read in as character variables due to the comma in the number, so let's set them to their appropriate class.
+```{r}
 valorant$gun1_kills <- as.numeric(gsub(',', '', valorant$gun1_kills))
 valorant$gun2_kills <- as.numeric(gsub(',', '', valorant$gun2_kills))
 valorant$first_bloods <- as.numeric(gsub(',', '', valorant$first_bloods))
@@ -100,8 +126,11 @@ valorant$kills <- as.numeric(gsub(',', '', valorant$kills))
 valorant$deaths <- as.numeric(gsub(',', '', valorant$deaths))
 valorant$assists <- as.numeric(gsub(',', '', valorant$assists))
 valorant$headshots <- as.numeric(gsub(',', '', valorant$headshots))
+```
 
-valorant <- sample_n(valorant, size = 1000)
+That does it for the data clean up! Let's set the size to lessen the run-time and set the seed to get consistent results!
+```{r}
+valorant <- sample_n(valorant, size = 150)
 
 set.seed(1)
 ```
@@ -111,13 +140,17 @@ set.seed(1)
 # Exploratory Data Analysis
 
 ### Viewing the Data
+
+To start of the EDA, we'll take a quick look at the data to see if it's in the format that we like.
 ```{r}
 head(valorant)
 ```
+Everything looks good here!
 
 ```{r}
 dim(valorant)
 ```
+Being that we started with 38 total variables and then removed "region", "name", and "tag", we correctly have 35 variables left; and we can see that we have the correct amount of observations specified in our sample_n function! Let's see how well the numerical variables correlate with each other...
 
 ```{r}
 # Correlation plot
@@ -128,6 +161,7 @@ valorant %>%
   corrplot(type = 'full', diag = FALSE, method = 'square', order = 'AOE',
            tl.col = 'orange', col = COL2('PuOr'))
 ```
+As we can see, majority of the variables actually go hand-in-hand with one another, with the exception of some negative correlations with gun1_head and gun1_body for example; but that's to be expected. To no surprise, kills are highly correlated with variables like "clutches", "flawless", and "deaths"; but it came as a shock to me to see that there was actually a negative correlation with variables such as "gun2_head" and "win_percent"! Speaking of "win_percent", let's inspect the distribution for it -- being that it's the variable we're predicting.
 
 ```{r}
 # Histogram
@@ -136,6 +170,7 @@ valorant %>%
   ggplot(aes(win_percent)) +
   geom_histogram(bins = 50)
 ```
+It can be observed that our response variable, "win_percent", has a skewed right distribution -- with majority of the players' win percentages being around 50%. We have a couple of players winning a very high amount of their games this act, sitting at around the 90% area. Yet, we also have a bunch of players that are not doing so hot, sitting close to the 20% area.
 
 ```{r}
 # Bar Plots
@@ -193,7 +228,7 @@ valFold <- vfold_cv(valTrain, strata = win_percent, v = 5)
 ```{r}
 valRecipe <- recipe(win_percent ~ ., data = valTrain) %>% 
   step_dummy(all_nominal_predictors()) %>% 
-  step_other(agent_1, agent_2, agent_3, gun2_name, gun3_name) %>% 
+  step_other(agent_1, agent_2, agent_3, gun1_name, gun2_name, gun3_name) %>% 
   step_novel(agent_1, agent_2, agent_3, gun1_name, gun2_name, gun3_name) %>% 
   step_center(all_numeric_predictors()) %>% 
   step_scale(all_numeric_predictors()) %>% 
