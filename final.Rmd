@@ -1,0 +1,310 @@
+---
+title: "Valorant Win Percentage Prediction Model"
+author: "Nathan De Los Santos"
+date: "Fall 2022"
+output:
+  html_document:
+    code_folding: hide
+    toc: true
+    toc_float: true
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+![](valorant.jpeg)
+
+# Introduction
+
+The aim of this project is to be able to predict a player's win percentage based on their individual performance.
+
+### What is Valorant?
+
+Valorant is a free-to-play, first-person, tactical shooter published by Riot Games. Although officially released in June 2020, the development of the game started in 2014 and did not start their closed beta access until April 2020. Valorant is set in the near future, where players play as one of 20 "agents" -- characters based on several countries and cultures around the world. In the main game mode, players are assigned to a team of 5, either attacking or defending, with each team aiming to be the first to win 13 rounds. Not only is there a halftime to switch sides, but there is an overtime if the teams end up in a tie. Agents have unique abilities, each requiring charges, as well as a unique ultimate ability that requires charging through kills, deaths, orbs, or objectives. 
+
+Now that we all have a basic understanding of the game, let's get started!
+
+### Loading Libraries and Data
+```{r, warning=FALSE, message=FALSE}
+
+library(tidymodels)
+library(tidyverse)
+library(ISLR) # For the Smarket data set
+library(ISLR2) # For the Bikeshare data set
+library(discrim)
+library(poissonreg)
+library(corrr)
+library(klaR) # for naive bayes
+library(ggplot2)
+library(ggthemes)
+library(pROC)
+library(janitor)
+library(corrplot)
+library(rpart.plot)
+library(vip)
+library(randomForest)
+library(xgboost)
+library(yardstick)
+tidymodels_prefer()
+```
+
+
+
+# Data Cleaning
+
+### Setting up the data
+```{r}
+
+valData <- read.csv('Data/val_stats.csv')
+
+valorant <- valData %>% clean_names()
+
+valorant <- valorant %>% 
+  select(-region, -name, -tag)
+
+valorant <- valorant %>% 
+  filter(win_percent != 0, 
+           win_percent != 100,
+         rating == 'Unrated' | rating == 'Bronze 2' | rating == 'Bronze 3' |
+         rating == 'Silver 1' | rating == 'Silver 2' | rating == 'Silver 3' |
+         rating == 'Gold 1' | rating == 'Gold 2' | rating == 'Gold 3' |
+         rating == 'Platinum 1' | rating == 'Platinum 2' | rating == 'Platinum 3' |
+         rating == 'Diamond 1' | rating == 'Diamond 2' | rating == 'Diamond 3' |
+         rating == 'Immortal 1' | rating == 'Immortal 2' | rating == 'Immortal 3' | 
+           rating == 'Radiant')
+
+valorant$agent_1 <- factor(valorant$agent_1)
+valorant$agent_2 <- factor(valorant$agent_2)
+valorant$agent_3 <- factor(valorant$agent_3)
+
+valorant$gun1_name <- factor(valorant$gun1_name)
+valorant$gun2_name <- factor(valorant$gun2_name)
+valorant$gun3_name <- factor(valorant$gun3_name)
+
+valorant$rating <- factor(valorant$rating,
+                          levels = c('Unrated', 'Bronze 2', 'Bronze 3',
+                                     'Silver 1', 'Silver 2', 'Silver 3',
+                                     'Gold 1', 'Gold 2', 'Gold 3',
+                                     'Platinum 1', 'Platinum 2', 'Platinum 3',
+                                     'Diamond 1', 'Diamond 2', 'Diamond 3',
+                                     'Immortal 1', 'Immortal 2', 'Immortal 3', 
+                                     'Radiant'))
+
+valorant$gun1_kills <- as.numeric(gsub(',', '', valorant$gun1_kills))
+valorant$gun2_kills <- as.numeric(gsub(',', '', valorant$gun2_kills))
+valorant$first_bloods <- as.numeric(gsub(',', '', valorant$first_bloods))
+valorant$kills <- as.numeric(gsub(',', '', valorant$kills))
+valorant$deaths <- as.numeric(gsub(',', '', valorant$deaths))
+valorant$assists <- as.numeric(gsub(',', '', valorant$assists))
+valorant$headshots <- as.numeric(gsub(',', '', valorant$headshots))
+
+valorant <- sample_n(valorant, size = 1000)
+
+set.seed(1)
+```
+
+
+
+# Exploratory Data Analysis
+
+### Viewing the Data
+```{r}
+head(valorant)
+```
+
+```{r}
+dim(valorant)
+```
+
+```{r}
+# Correlation plot
+
+valorant %>% 
+  select(where(is.numeric)) %>% 
+  cor() %>% 
+  corrplot(type = 'full', diag = FALSE, method = 'square', order = 'AOE',
+           tl.col = 'orange', col = COL2('PuOr'))
+```
+
+```{r}
+# Histogram
+
+valorant %>% 
+  ggplot(aes(win_percent)) +
+  geom_histogram(bins = 50)
+```
+
+```{r}
+# Bar Plots
+
+valorant %>% 
+  ggplot(aes(y = agent_1)) +
+  geom_bar()
+
+valorant %>% 
+  ggplot(aes(y = gun1_name)) +
+  geom_bar()
+
+valorant %>% 
+  ggplot(aes(y = gun2_name)) +
+  geom_bar()
+
+valorant %>% 
+  ggplot(aes(y = gun3_name)) +
+  geom_bar()
+```
+
+```{r}
+# Box and Whisker Plot
+
+valorant %>% 
+  ggplot(aes(x = score_round, y = gun3_name)) +
+  geom_boxplot()
+
+valorant %>% 
+  ggplot(aes(x = headshot_percent, y = rating)) +
+  geom_boxplot()
+
+valorant %>% 
+  ggplot(aes(x = damage_round, y = gun1_name)) +
+  geom_boxplot()
+```
+
+
+
+# Model Building
+
+### Data Split
+```{r}
+valSplit <- initial_split(valorant, prop = 0.8, strata = win_percent)
+valTrain <- training(valSplit)
+valTest <- testing(valSplit)
+```
+
+### Folding the Data
+```{r}
+valFold <- vfold_cv(valTrain, strata = win_percent, v = 5)
+```
+
+### Creating the Recipe
+```{r}
+valRecipe <- recipe(win_percent ~ ., data = valTrain) %>% 
+  step_dummy(all_nominal_predictors()) %>% 
+  step_other(agent_1, agent_2, agent_3, gun2_name, gun3_name) %>% 
+  step_novel(agent_1, agent_2, agent_3, gun1_name, gun2_name, gun3_name) %>% 
+  step_center(all_numeric_predictors()) %>% 
+  step_scale(all_numeric_predictors()) %>% 
+  step_pca(headshots, most_kills, wins, kd_ratio,
+         gun1_head, gun1_body, gun1_legs,
+         gun2_head, gun2_body, gun2_legs,
+         gun3_head, gun3_body, gun3_legs,
+         gun1_kills, gun2_kills, gun3_kills,
+         kills, assists, deaths, 
+         headshot_percent, win_percent,
+         flawless, clutches, aces, first_bloods,
+         score_round, damage_round, kills_round,
+         num_comp = 3) %>% 
+  step_nzv(all_predictors())
+```
+
+```{r}
+# rating + damage_round + headshots + headshot_percent + aces + clutches + flawless + first_bloods + kills + deaths + assists + kd_ratio + kills_round + most_kills + score_round + wins + win_percent + agent_1 + agent_2 + agent_3 + gun1_name + gun1_head + gun1_body + gun1_legs + gun1_kills + gun2_name + gun2_head + gun2_body + gun2_legs + gun2_kills + gun3_name + gun3_head + gun3_body + gun3_legs + gun3_kills
+```
+
+### Model Fits
+```{r}
+# Logistic Regression
+lm_model <- linear_reg() %>% 
+  set_engine('lm')
+
+lm_wflow <- workflow() %>% 
+  add_model(lm_model) %>% 
+  add_recipe(valRecipe)
+
+lm_fit <- fit_resamples(lm_wflow, valFold)
+```
+
+
+
+```{r}
+# Lasso Regression
+lasso_spec <- linear_reg(mixture = 1, penalty = tune()) %>% 
+  set_mode("regression") %>% 
+  set_engine("glmnet") 
+
+lasso_workflow <- workflow() %>% 
+  add_recipe(valRecipe) %>% 
+  add_model(lasso_spec)
+
+penalty_grid <- grid_regular(penalty(range = c(-5, 5)), levels = 50)
+
+tune_res <- tune_grid(lasso_workflow, resamples = valFold, grid = penalty_grid)
+```
+
+```{r}
+autoplot(tune_res)
+
+best_penalty <- select_best(tune_res, metric = "rsq")
+
+lasso_final <- finalize_workflow(lasso_workflow, best_penalty)
+
+lasso_final_fit <- fit(lasso_final, data = valTrain)
+```
+
+
+
+```{r}
+# Decision Tree
+reg_tree_spec <- tree_spec %>%
+  set_mode("regression")
+
+reg_tree_fit <- fit(reg_tree_spec, win_percent ~ .)
+```
+
+
+
+```{r}
+# Random Forest
+rf_spec <- rand_forest(mtry = 6) %>%
+  set_engine("randomForest", importance = TRUE) %>%
+  set_mode("regression")
+
+rf_fit <- fit(rf_spec, win_percent ~ ., data = valTrain)
+```
+
+
+### Logistic Regression Metrics
+```{r}
+#valorant_train_res <- predict(lm_fit, new_data = valTrain %>% select(win_percent))
+
+#lm_metrics <- metric_set(rmse, rsq, mae)
+#lm_train_res <- predict(lm_fit, new_data = valTrain)
+#lm_train_res <- bind_cols(lm_train_res, valTrain)
+#lm_metrics(lm_train_res, truth = win_percent, estimate = .pred)
+```
+
+### Lasso Regression Metrics
+```{r}
+#augment(ridge_final_fit, new_data = valTest) %>%
+#  rsq(truth = win_percent, estimate = .pred)
+```
+
+### Decision Tree Metrics
+```{r}
+
+```
+
+### Random Forest Metrics
+```{r}
+
+```
+
+
+
+# Conclusion
+```{r}
+
+```
