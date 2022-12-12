@@ -1,0 +1,3 @@
+TOKAÇ, FURKAN, 2022,
+EDA of Valorant Game,
+https://www.kaggle.com/code/furkantokac7/eda-of-valorant-game/data?select=val_stats.csv.

@@ -18,24 +18,12 @@ knitr::opts_chunk$set(echo = TRUE)
 ![](images/valorant.jpeg)
 
 # Introduction
-
+ 
+ 
+ 
 The aim of this project is to be able to predict a player's win percentage based on their individual performance.
-
-### What is Valorant?
-
-Valorant is a free-to-play, first-person, tactical shooter published by Riot Games. Although officially released in June 2020, the development of the game started in 2014 and did not start their closed beta access until April 2020. Valorant is set in the near future, where players play as one of 20 "agents" -- characters based on several countries and cultures around the world. In the main game mode, players are assigned to a team of 5, either attacking or defending, with each team aiming to be the first to win 13 rounds. Not only is there a halftime to switch sides, but there is an overtime if the teams end up in a tie. Agents have unique abilities, each requiring charges, as well as a unique ultimate ability that requires charging through kills, deaths, orbs, or objectives. 
-
-### Why is this project relevant?
-
-As this game is still relatively young, it can easily be seen that this game is also rapidly changing. Due to factors such as new maps, new agents, or updates that can buff or nerf certain aspects of this game, the meta of Valorant is ever-changing. Moreover, as Valorant is establishing its name as the next up and coming e-sport, professional players are dissecting every bit of the game to get the edge over their opponents. Through this project, we can do a deep dive of which factors lead to a higher win percentage and what trends are currently taking over.  
-
-### Project Timeline
-
-With all of that settled, let's cover exactly how we're going to accomplish this. First comes some data clean up and manipulation. Secondly, we'll get into some exploratory data analysis -- seeing the distribution of our outcome variable "win_percent" and the relationships among the many predictor variables. Next, we'll follow that up with our models, specifically linear regression, lasso regression, decision forest, and random forest. After fitting a training set to these models, we will fit the best performing model to the testing data. 
-
-Now that we all have a basic understanding of the game, let's get started!
-
-### Loading Libraries and Data
+ 
+## Loading Libraries and Data
 ```{r, warning=FALSE, message=FALSE}
 
 library(tidymodels)
@@ -60,18 +48,41 @@ tidymodels_prefer()
 
 # These are all the libraries I used to make this project happen!
 ```
-
-
-
+ 
+## What is Valorant?
+ 
+Valorant is a free-to-play, first-person, tactical shooter published by Riot Games. Although officially released in June 2020, the development of the game started in 2014 and did not start their closed beta access until April 2020. Valorant is set in the near future, where players play as one of 20 "agents" -- characters based on several countries and cultures around the world. In the main game mode, players are assigned to a team of 5, either attacking or defending, with each team aiming to be the first to win 13 rounds. Not only is there a halftime to switch sides, but there is an overtime if the teams end up in a tie. Agents have unique abilities, each requiring charges, as well as a unique ultimate ability that requires charging through kills, deaths, orbs, or objectives. 
+ 
+ 
+ 
+## Why is this project relevant?
+ 
+As this game is still relatively young, it can easily be seen that this game is also rapidly changing. Due to factors such as new maps, new agents, or updates that can buff or nerf certain aspects of this game, the meta of Valorant is ever-changing. Moreover, as Valorant is establishing its name as the next up and coming e-sport, professional players are dissecting every bit of the game to get the edge over their opponents. Through this project, we can do a deep dive of which factors lead to a higher win percentage and what trends are currently helping players dominate the game.  
+ 
+ 
+ 
+## Project Timeline
+ 
+With all of that settled, let's cover exactly how we're going to accomplish this. First comes some data clean up and manipulation. Secondly, we'll get into some exploratory data analysis -- seeing the distribution of our outcome variable "win_percent" and the relationships among the many predictor variables. Next, we'll follow up with our models, specifically linear regression, decision tree, random forest, and boosted tree. After fitting these models to the training set, we will fit the best performing model to the testing data. 
+ 
+Now that we all have a basic understanding of the game, let's get started!
+ 
+![](images/start.gif)
+ 
+ 
+ 
 # Data Cleaning
-
-### Setting up the data
+ 
+ 
+ 
+## Setting up the data
 
 Before we can even modify the data set, we have to read it in! Although the data was already pretty organized and neat, let's use the clean_names function to ensure it.
+
 ```{r}
 valData <- read.csv('Data/val_stats.csv')
 
-valorant <- valData %>% clean_names()
+valorant <- valData %>% clean_names() # lower cases all variables, replaces spaces with underscores, etc.
 ```
 
 Let's remove the predictor variables "region", "name", and "tag" as they are just characteristics to distinguish the players and not so relevant with predicting win percentage.
@@ -80,7 +91,7 @@ valorant <- valorant %>%
   select(-region, -name, -tag)
 ```
 
-We'll remove the extremities, as they were invalid entries due to either incorrect input or missing an input in general.
+We'll remove the extremities, as they were invalid entries due to either incorrect input or containing a missing value in general.
 ```{r}
 valorant <- valorant %>% 
   filter(win_percent != 0, 
@@ -105,7 +116,7 @@ valorant$gun2_name <- factor(valorant$gun2_name)
 valorant$gun3_name <- factor(valorant$gun3_name)
 ```
 
-Same thing for the "rating" variable, and let's organize the ranks to match the layout of the game.
+Same thing for the "rating" variable, and let's organize the ranks to match how it's organized in Valorant.
 ```{r}
 valorant$rating <- factor(valorant$rating,
                           levels = c('Unrated', 'Bronze 2', 'Bronze 3',
@@ -130,18 +141,19 @@ valorant$headshots <- as.numeric(gsub(',', '', valorant$headshots))
 
 That does it for the data clean up! Let's set the size to lessen the run-time and set the seed to get consistent results!
 ```{r}
-valorant <- sample_n(valorant, size = 150)
-
 set.seed(1)
+
+valorant <- sample_n(valorant, size = 10000)
 ```
-
-
-
+ 
+ 
+ 
 # Exploratory Data Analysis
-
-### Viewing the Data
-
-To start of the EDA, we'll take a quick look at the data to see if it's in the format that we like.
+ 
+ 
+ 
+## Viewing the Data
+To start of the EDA, we'll take a quick look at the data to see if we missed anything in the data clean up.
 ```{r}
 head(valorant)
 ```
@@ -150,196 +162,340 @@ Everything looks good here!
 ```{r}
 dim(valorant)
 ```
-Being that we started with 38 total variables and then removed "region", "name", and "tag", we correctly have 35 variables left; and we can see that we have the correct amount of observations specified in our sample_n function! Let's see how well the numerical variables correlate with each other...
+Being that we started with 38 total variables and then removed "region", "name", and "tag", we correctly have 35 variables left. We can see that we have the correct amount of observations specified in our sample_n function! Let's see how well the numerical variables correlate with each other...
 
+## Correlation plot
 ```{r}
-# Correlation plot
-
 valorant %>% 
   select(where(is.numeric)) %>% 
   cor() %>% 
   corrplot(type = 'full', diag = FALSE, method = 'square', order = 'AOE',
            tl.col = 'orange', col = COL2('PuOr'))
 ```
-As we can see, majority of the variables actually go hand-in-hand with one another, with the exception of some negative correlations with gun1_head and gun1_body for example; but that's to be expected. To no surprise, kills are highly correlated with variables like "clutches", "flawless", and "deaths"; but it came as a shock to me to see that there was actually a negative correlation with variables such as "gun2_head" and "win_percent"! Speaking of "win_percent", let's inspect the distribution for it -- being that it's the variable we're predicting.
+As we can see, majority of the variables actually go hand-in-hand with one another, with the exception of some negative correlations like gun1_head and gun1_body for example -- but that's to be expected. To no surprise, kills are highly correlated with variables like "clutches", "flawless", and "deaths"; but it came as a shock to me to see that there was actually a negative correlation with variables such as "gun2_head" and "win_percent"! Speaking of "win_percent", let's inspect the distribution for it -- being that it's the variable we're predicting.
 
+## Histogram
 ```{r}
-# Histogram
-
 valorant %>% 
   ggplot(aes(win_percent)) +
   geom_histogram(bins = 50)
 ```
-It can be observed that our response variable, "win_percent", has a skewed right distribution -- with majority of the players' win percentages being around 50%. We have a couple of players winning a very high amount of their games this act, sitting at around the 90% area. Yet, we also have a bunch of players that are not doing so hot, sitting close to the 20% area.
+It can be observed that our response variable, "win_percent", has a normal distribution -- with majority of the players' win percentages being around 50%. We have a small amount of players winning a very high amount of their games this act, sitting at about the 90% area. Alternatively, we have some players that are not doing so hot, sitting under the 25% area. Maybe it has something to do with the agents they are selecting? Let's take a look.
 
+## Bar Plots
 ```{r}
-# Bar Plots
-
 valorant %>% 
   ggplot(aes(y = agent_1)) +
   geom_bar()
+```
+As of this act, we can see that the leading and most trending agents are Chamber, Reyna, and Jett. Having personal experience playing this game, I can tell you that this is a very accurate depiction of the current state of the game. These agents have lots of unique abilities and traits that help their team win, especially if played effectively and correctly. But agents don't define the game entirely... how about the weapons that the players are choosing?
 
+```{r}
 valorant %>% 
   ggplot(aes(y = gun1_name)) +
   geom_bar()
+```
+With no surprise, the two most popular guns are the Vandal and Phantom. It is still very up in the air about which gun is objectively better, but I would assume the Vandal gets a lot more usage due to the fact that it can hit a one-shot headshot and a phantom cannot. The up-side to the phantom however, is that it allows the user to be able to control the spray of bullets, where as the Vandal is more effective with burst shots.
 
+```{r}
 valorant %>% 
   ggplot(aes(y = gun2_name)) +
   geom_bar()
+```
+For the peoples' second choice, we see that the Vandal and Phantom are used as a back-up pick (maybe their luck isn't working with their first choice), but we also see that the Spectre, Operator, and Ghost are popular options. The reason that these guns may be the second choice for a lot of people can simply be due to economical reasons. The Operator, being the most expensive weapon in the game, does not allow the players to be able to buy it very often. With the Spectre, it is a very popular choice in terms of being a cheap but effective weapon -- so if a team has to save up a little more money to be able to buy a Vandal or Phantom the next round, they will opt for the Spectre. As for the Ghost, it is a common weapon to hold during the pistol round -- the first round of every game and the first round after every half.
 
+```{r}
 valorant %>% 
   ggplot(aes(y = gun3_name)) +
   geom_bar()
 ```
+Lastly, we look at the peoples' third choice. We can infer that the large variation of choices can be the result of a great amount of factors, all the way from economical reasons (similar to the second choice) to subjective preference, where people just find it fun to use (after all it is a video game). Commonly picked as the third weapon, we see the Spectre (probably having similar reason as when it was the second choice), Phantom and Operator, and the three most popular pistols: Sheriff, Classic, and Ghost. With such a large range of options for a third choice, let's look at how the players perform after choosing such weapons...
 
+# Box and Whisker Plots
 ```{r}
-# Box and Whisker Plot
-
 valorant %>% 
   ggplot(aes(x = score_round, y = gun3_name)) +
   geom_boxplot()
+```
+Notably in this graph, we can see that the average score per round across all the levels of guns sits around the 220 area. Unexpectedly to me, although not picked quite nearly as often, the average score per round for people who chose either the Bulldog or Ares have a higher average than those who chose the Spectre. This could simply be the reason because there are not a lot of observations for these guns and since the Spectre has a higher pick rate, the average is brought down. So we've seen how dangerous the players can be, but just how precise is their shot?
 
+```{r}
 valorant %>% 
   ggplot(aes(x = headshot_percent, y = rating)) +
   geom_boxplot()
+```
+From this graph, we can see that the higher ranks stay quite close to each other at around a headshot percent of 25. Naturally, as we climb the ranks, this percentage will increase, but actually it is striking to me to see that Immortal 3 players have a higher average than Radiant players (the top rank of the game -- top 500 in the region). Although this is the case, it can also be seen that Radiant players are more consistent, since their Q1 and Q3 are closer to the mean than that of the Immortal 3 players. Overall, these players are hitting about one headshot per five shots total.
 
+```{r}
 valorant %>% 
   ggplot(aes(x = damage_round, y = gun1_name)) +
   geom_boxplot()
 ```
+Let's try to settle the debate ourselves, which gun is better... the Vandal or the Phantom? As we can see in this box and whisker plot, Vandal users are dealing a higher average amount of damage per round than Phantom users. Similar to our Radiant and Immortal 3 comparison in the last box and whisker plot, Phantom users are more consistent while Vandal users cover a large range of damage per round. So I'll ask you then... would you rather have a more consistent player or one that can either pop-off or perform underwhelmingly?
 
 
 
 # Model Building
-
-### Data Split
+ 
+ 
+ 
+We have finally reached model building! As mentioned previously, I will be making a linear regression model, a decision tree, a random forest, and a boosted tree. First, we start off by splitting the data. I chose to do an 80/20 split between the training set and the testing set, and then also stratified it to the variable we are predicting: win_percent.
+ 
+ 
+ 
+## Data Split
+After splitting we can recognize that the training data correctly contains xxx observations (80% of observations in our sample size) and the testing data correctly contains xxx observations (20% of observations in our sample size).
 ```{r}
 valSplit <- initial_split(valorant, prop = 0.8, strata = win_percent)
 valTrain <- training(valSplit)
 valTest <- testing(valSplit)
 ```
 
-### Folding the Data
+
+
+## Folding the Data
+Next I implement the k-fold cross-validation method by using 5 folds and stratifying it to our predicted variable.
 ```{r}
 valFold <- vfold_cv(valTrain, strata = win_percent, v = 5)
 ```
 
-### Creating the Recipe
+
+
+## Creating the Recipe
+Following up the folds, I create the recipe that we are going to be adding to the future models.
 ```{r}
-valRecipe <- recipe(win_percent ~ ., data = valTrain) %>% 
-  step_dummy(all_nominal_predictors()) %>% 
-  step_other(agent_1, agent_2, agent_3, gun1_name, gun2_name, gun3_name) %>% 
-  step_novel(agent_1, agent_2, agent_3, gun1_name, gun2_name, gun3_name) %>% 
-  step_center(all_numeric_predictors()) %>% 
-  step_scale(all_numeric_predictors()) %>% 
-  step_pca(headshots, most_kills, wins, kd_ratio,
+valRecipe <- recipe(win_percent ~ rating + damage_round + headshots + headshot_percent + 
+                      aces + clutches + flawless + first_bloods + 
+                      kills + deaths + assists + kd_ratio + 
+                      kills_round + most_kills + score_round + 
+                      agent_1 + agent_2 + agent_3 + 
+                      gun1_name + gun1_head + gun1_body + gun1_legs + gun1_kills + 
+                      gun2_name + gun2_head + gun2_body + gun2_legs + gun2_kills + 
+                      gun3_name + gun3_head + gun3_body + gun3_legs + gun3_kills, data = valTrain) %>%  
+                                                                                # predict win_percent with all variables
+  step_dummy(all_nominal_predictors()) %>%                                      # dummy code nominal variables
+  step_other(agent_1, agent_2, agent_3, gun1_name, gun2_name, gun3_name) %>%    # pool infrequently occurring values into an "other" category
+  step_novel(agent_1, agent_2, agent_3, gun1_name, gun2_name, gun3_name) %>%    # assign a previously unseen factor level to a new value
+  step_center(all_numeric_predictors()) %>%                                     # center all numeric predictors
+  step_scale(all_numeric_predictors()) %>%                                      # scale all numeric predictors
+  step_pca(headshots, most_kills, kd_ratio,
          gun1_head, gun1_body, gun1_legs,
          gun2_head, gun2_body, gun2_legs,
          gun3_head, gun3_body, gun3_legs,
          gun1_kills, gun2_kills, gun3_kills,
          kills, assists, deaths, 
-         headshot_percent, win_percent,
+         headshot_percent,
          flawless, clutches, aces, first_bloods,
          score_round, damage_round, kills_round,
-         num_comp = 3) %>% 
-  step_nzv(all_predictors())
+         num_comp = 3) %>%                                                      # convert numeric data into one or more principal components
+  step_nzv(all_predictors())                                                    # remove variables that are highly sparse and unbalanced
 ```
 
 ```{r}
-# rating + damage_round + headshots + headshot_percent + aces + clutches + flawless + first_bloods + kills + deaths + assists + kd_ratio + kills_round + most_kills + score_round + wins + win_percent + agent_1 + agent_2 + agent_3 + gun1_name + gun1_head + gun1_body + gun1_legs + gun1_kills + gun2_name + gun2_head + gun2_body + gun2_legs + gun2_kills + gun3_name + gun3_head + gun3_body + gun3_legs + gun3_kills
+valRecipe2 <- recipe(win_percent ~ rating + damage_round + headshots + headshot_percent + 
+                      aces + clutches + flawless + first_bloods + 
+                      kills + deaths + assists + kd_ratio + 
+                      kills_round + most_kills + score_round + 
+                      agent_1 + agent_2 + agent_3 + 
+                      gun1_name + gun1_head + gun1_body + gun1_legs + gun1_kills + 
+                      gun2_name + gun2_head + gun2_body + gun2_legs + gun2_kills + 
+                      gun3_name + gun3_head + gun3_body + gun3_legs + gun3_kills, data = valTrain) %>%  
+                                                                                # predict win_percent with all variables
+  step_dummy(all_nominal_predictors()) %>%                                      # dummy code nominal variables
+  step_other(agent_1, agent_2, agent_3, gun1_name, gun2_name, gun3_name) %>%    # pool infrequently occurring values into an "other" category
+  step_novel(agent_1, agent_2, agent_3, gun1_name, gun2_name, gun3_name) %>%    # assign a previously unseen factor level to a new value
+  step_center(all_predictors()) %>%                                             # center all numeric predictors
+  step_scale(all_predictors()) %>%                                              # scale all numeric predictors
+  step_pca(headshots, most_kills, kd_ratio,
+         gun1_head, gun1_body, gun1_legs,
+         gun2_head, gun2_body, gun2_legs,
+         gun3_head, gun3_body, gun3_legs,
+         gun1_kills, gun2_kills, gun3_kills,
+         kills, assists, deaths, 
+         headshot_percent,
+         flawless, clutches, aces, first_bloods,
+         score_round, damage_round, kills_round,
+         num_comp = 3) %>%                                                      # convert numeric data into one or more principal components
+  step_nzv(all_predictors())                                                    # remove variables that are highly sparse and unbalanced
 ```
 
-### Model Fits
+## Model Fits
+
+Let's get started with the first model...
+
+## Linear Regression
 ```{r}
-# Logistic Regression
-lm_model <- linear_reg() %>% 
+lm_spec <- linear_reg() %>% 
+  set_mode('regression') %>% 
   set_engine('lm')
+# set the mode to regression and the engine to linear model
 
-lm_wflow <- workflow() %>% 
-  add_model(lm_model) %>% 
-  add_recipe(valRecipe)
-
-lm_fit <- fit_resamples(lm_wflow, valFold)
-```
-
-
-
-```{r}
-# Lasso Regression
-lasso_spec <- linear_reg(mixture = 1, penalty = tune()) %>% 
-  set_mode("regression") %>% 
-  set_engine("glmnet") 
-
-lasso_workflow <- workflow() %>% 
-  add_recipe(valRecipe) %>% 
-  add_model(lasso_spec)
-
-penalty_grid <- grid_regular(penalty(range = c(-5, 5)), levels = 50)
-
-tune_res <- tune_grid(lasso_workflow, resamples = valFold, grid = penalty_grid)
+lm_fit <- fit(lm_spec, win_percent ~ rating + damage_round + headshots + headshot_percent + 
+                      aces + clutches + flawless + first_bloods + 
+                      kills + deaths + assists + kd_ratio + 
+                      kills_round + most_kills + score_round + 
+                      agent_1 + agent_2 + agent_3 + 
+                      gun1_name + gun1_head + gun1_body + gun1_legs + gun1_kills + 
+                      gun2_name + gun2_head + gun2_body + gun2_legs + gun2_kills + 
+                      gun3_name + gun3_head + gun3_body + gun3_legs + gun3_kills,
+                    data = valTrain)
+# nothing to complicated about linear regression, fit the specified model, add a formula, and fit to the training data
 ```
 
 ```{r}
-autoplot(tune_res)
+lm_results <- augment(lm_fit, new_data = valTrain) %>% 
+  rmse(truth = win_percent, estimate = .pred)
 
-best_penalty <- select_best(tune_res, metric = "rsq")
-
-lasso_final <- finalize_workflow(lasso_workflow, best_penalty)
-
-lasso_final_fit <- fit(lasso_final, data = valTrain)
+lm_results
+# How did it do?
 ```
+The linear regression model acquired an RMSE of 7.26781, not bad but could be better.
 
+Now for the decision tree!
 
-
+## Decision Tree
 ```{r}
-# Decision Tree
+tree_spec <- decision_tree() %>%
+  set_engine("rpart")
+# Using the rpart engine to help make the decision tree
+
 reg_tree_spec <- tree_spec %>%
   set_mode("regression")
+# Specify the tree as regression
 
-reg_tree_fit <- fit(reg_tree_spec, win_percent ~ .)
+reg_tree_fit <- fit(reg_tree_spec, 
+                    win_percent ~ rating + damage_round + headshots + headshot_percent + 
+                      aces + clutches + flawless + first_bloods + 
+                      kills + deaths + assists + kd_ratio + 
+                      kills_round + most_kills + score_round + 
+                      agent_1 + agent_2 + agent_3 + 
+                      gun1_name + gun1_head + gun1_body + gun1_legs + gun1_kills + 
+                      gun2_name + gun2_head + gun2_body + gun2_legs + gun2_kills + 
+                      gun3_name + gun3_head + gun3_body + gun3_legs + gun3_kills,
+                    data = valTrain)
+# Fit the model to the training data set
+
+reg_tree_fit %>% 
+  extract_fit_engine() %>% 
+  rpart.plot()
+# Plot the tree!
 ```
 
+```{r}
+reg_tree_wf <- workflow() %>%
+  add_model(reg_tree_spec %>% set_args(cost_complexity = tune())) %>%
+  add_formula(win_percent ~ rating + damage_round + headshots + headshot_percent + 
+                      aces + clutches + flawless + first_bloods + 
+                      kills + deaths + assists + kd_ratio + 
+                      kills_round + most_kills + score_round + 
+                      agent_1 + agent_2 + agent_3 + 
+                      gun1_name + gun1_head + gun1_body + gun1_legs + gun1_kills + 
+                      gun2_name + gun2_head + gun2_body + gun2_legs + gun2_kills + 
+                      gun3_name + gun3_head + gun3_body + gun3_legs + gun3_kills)
+# Create a workflow for the decision tree
 
+param_grid <- grid_regular(cost_complexity(range = c(-4, -1)), levels = 10)
+
+tune_res <- tune_grid(reg_tree_wf, resamples = valFold, grid = param_grid, metrics = metric_set(rmse, rsq)) # Trying to find the best value for the parameters
+
+autoplot(tune_res)
+```
+It can be seen that as we increase the cost-complexity parameter, the RSQ will eventually peak, but the RMSE is at its lowest point.
 
 ```{r}
-# Random Forest
-rf_spec <- rand_forest(mtry = 6) %>%
+best_complexity <- select_best(tune_res, metric = "rmse") # Selecting the best value for RMSE
+
+reg_tree_final <- finalize_workflow(reg_tree_wf, best_complexity) # Creating a workflow using the best parameter value
+
+reg_tree_final_fit <- fit(reg_tree_final, data = valTrain) # Fitting the model onto the training data set
+
+reg_tree_final_fit %>%
+  extract_fit_engine() %>%
+  rpart.plot()
+# Plot the tree again!
+```
+```{r}
+reg_tree_result <-augment(reg_tree_final_fit, new_data = valTest) %>%
+  rmse(truth = win_percent, estimate = .pred) # Let's check how well our model did
+
+reg_tree_result
+```
+Our model got an RMSE of 9.295308 -- this model does not seem that great.
+
+Moving onto Random Forest!
+
+## Random Forest
+```{r}
+rf_spec <- rand_forest(mtry = .cols()) %>%
   set_engine("randomForest", importance = TRUE) %>%
   set_mode("regression")
+# Creating a Random Forest model
 
-rf_fit <- fit(rf_spec, win_percent ~ ., data = valTrain)
+rf_fit <- fit(rf_spec, win_percent ~ rating + damage_round + headshots + headshot_percent + 
+                      aces + clutches + flawless + first_bloods + 
+                      kills + deaths + assists + kd_ratio + 
+                      kills_round + most_kills + score_round + 
+                      agent_1 + agent_2 + agent_3 + 
+                      gun1_name + gun1_head + gun1_body + gun1_legs + gun1_kills + 
+                      gun2_name + gun2_head + gun2_body + gun2_legs + gun2_kills + 
+                      gun3_name + gun3_head + gun3_body + gun3_legs + gun3_kills, 
+              data = valTrain)
+# Fit the model to the training data set
 ```
 
-
-### Logistic Regression Metrics
 ```{r}
-#valorant_train_res <- predict(lm_fit, new_data = valTrain %>% select(win_percent))
+rf_result <- augment(rf_fit, new_data = valTest) %>%
+  rmse(truth = win_percent, estimate = .pred)
 
-#lm_metrics <- metric_set(rmse, rsq, mae)
-#lm_train_res <- predict(lm_fit, new_data = valTrain)
-#lm_train_res <- bind_cols(lm_train_res, valTrain)
-#lm_metrics(lm_train_res, truth = win_percent, estimate = .pred)
+rf_result
 ```
 
-### Lasso Regression Metrics
 ```{r}
-#augment(ridge_final_fit, new_data = valTest) %>%
-#  rsq(truth = win_percent, estimate = .pred)
+augment(rf_fit, new_data = valTest) %>%
+  ggplot(aes(win_percent, .pred)) +
+  geom_abline() +
+  geom_point(alpha = 0.5)
+# Let's see how well the model is able to predict the win_percent
 ```
+By taking a look at the graph, it's obvious that this model did not do a very good job at predicting the true value of win_percent.
 
-### Decision Tree Metrics
+
 ```{r}
-
+vip(rf_fit) # Which predictors were most important at helping predict the true value?
 ```
+In general, we can see that predictors such as "kd_ratio" and "rating" were quite important in helping our model predict the win percentage of a player. On the other hand, variables such as "kills" or "damage_round" don't necessarily mean a player is going to have a high win percentage.
 
-### Random Forest Metrics
+Last but not least... Boosted Tree!
+
+## Boosted Tree
+
 ```{r}
+boost_spec <- boost_tree(trees = 5000, tree_depth = 4) %>%
+  set_engine("xgboost") %>%
+  set_mode("regression")
 
+boost_fit <- fit(boost_spec, win_percent ~ ., data = valTrain)
+
+boost_result <-augment(boost_fit, new_data = valTest) %>%
+  rmse(truth = win_percent, estimate = .pred)
+
+boost_result
 ```
 
+Let's put the results together to get an easier look of which model did the best shall we?
+
+```{r}
+bind_rows(lm_results, reg_tree_result, rf_result, boost_result)
+```
 
 
 # Conclusion
-```{r}
+In conclusion, after our detailed analysis of Valorant, the model that performed the best at predicting the win percentage of a player given their individual statistics is Boosted Tree!
 
-```
+There are a lot of ways in which I could have improved upon in this project, such as building more models (Support Vector Machines, ridge regression, neural networks, etc.) or simply manipulating the variables a little bit more. As I worked through this project, a couple of my models failed and I ultimately was not able to pull results from it. Even more so, the models that were able run performed very poorly. As of right now, it is hard to determine what is the cause for the poor performance, but I think I can confidently say that this project did not have the results I wished for. Taking this project as a learning lesson, I hope to work on this project in the future and I hope to eventually get it right.
+
+Overall, this project felt very rewarding to work on every bit of the way. It was a good chance to work on my skills and build some experience with machine learning and projects in general -- and I got to work on a topic I am heavily interested in! Thank you for following along and I hope you enjoyed going through this project with me!
+
+In the wise words of my random teammate, "gg go next."
+
+![](images/huddle.gif)

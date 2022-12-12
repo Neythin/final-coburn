@@ -1,0 +1,43 @@
+Valorant Codebook
+
+Name / Data Type / Measurement Unit / Description
+-------------------------------
+region / nominal / NA, EU, AP, KR, BR, LAT / Valorant server area
+name / nominal / -- / Player name shown in games
+tag / nominal / -- / Riot games TAG
+rating / nominal / Bronze 2-3, Silver 1-3, Gold 1-3, Platinum 1-3, Diamond 1-3, Immortal 1-3, Radiant / Player's rank
+damage_round / continuous / damgage points (DP) / average damage done per round in all player's games
+headshots / discrete / raw count / Total headshots hit from all games
+headshot_percentage / continuous / headshots over total hits / Percentage of total hit shots that are headshots
+aces / discrete / raw count / Number of aces this act
+clutches / discrete / raw count / Number of round clutches this act
+flawless / discrete / raw count / Number of flawless rounds this act
+first_bloods / discrete / raw count / Number of first bloods this act
+kills / discrete / raw count / Total number of kills from all games
+deaths / discrete / raw count / Total number of deaths from all games
+assists / discrete / raw count / Total number of assists from all games
+kd_ratio / continuous / kills per death / Kill/death ratio from this act
+kills_round / continuous / kills per round / Average kills per round over all games this act
+most_kills / discrete / raw count / Most kills ever gotten in one game
+score_round / continuous / score per round / Average score per round over all games this act
+wins / discrete / raw count / Total number of wins this act
+win_percent / continuous / wins over total games played / Percentage of games that are wins
+agent_1 / discrete / -- / Most played agent based on hours
+agent_2 / discrete / -- / Second most played agent based on hours
+agent_3 / discrete / -- / Third most played agent based on hours
+gun1_name / nominal / -- / Player's best gun based on kills
+gun1_head / discrete / headshots over total hits / Percentage of gun 1's total hit shots that are headshots
+gun1_body / discrete / body shots over total hits / Percentage of gun 1's total hit shots that are bodyshots
+gun1_legs / discrete / leg shots over total hits / Percentage of gun 1's total hit shots that are legshots
+gun1_kills / discrete / raw count / Total kills with gun1 this act
+gun2_name / nominal / -- / Percentage of gun 2's total hit shots that are headshots
+gun2_head / discrete / headshots over total hits / Percentage of gun 2's total hit shots that are headshots
+gun2_body / discrete / body shots over total hits / Percentage of gun 2's total hit shots that are bodyshots
+gun2_legs / discrete / leg shots over total hits / Percentage of gun 2's total hit shots that are legshots
+gun2_kills / discrete / raw count / Total kills with gun2 this act
+gun3_name / nominal / -- / Player's third best gun based on kills
+gun3_head / discrete / headshots over total hits / Percentage of gun 3's total hit shots that are headshots
+gun3_body / discrete / body shots over total hits / Percentage of gun 3's total hit shots that are bodyshots
+gun3_legs / discrete / leg shots over total hits / Percentage of gun 3's total hit shots that are legshots
+gun3_kills / discrete / raw count / Total kills with gun3 this act
+
